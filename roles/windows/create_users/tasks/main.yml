@@ -3,10 +3,15 @@
 #    cci_user_pwd: "{{ lookup('password', '/dev/null length=42 chars=ascii_letters,digits,punctuation') }}"
 #    cci_admin_pwd: "{{ lookup('password', '/dev/null length=42 chars=ascii_letters,digits,punctuation') }}"
 
+#- name: Disable complex password requirements
+#  ansible.windows.win_powershell:
+#    script: |
+#      secedit /export /cfg c:\secpol.cfg (gc C:\secpol.cfg).replace("PasswordComplexity = 1", "PasswordComplexity = 0") | Out-File C:\secpol.cfg secedit /configure /db c:\windows\security\local.sdb /cfg c:\secpol.cfg /areas SECURITYPOLICY rm -force c:\secpol.cfg -confirm:$false
+
 - name: Disable complex password requirements
   ansible.windows.win_powershell:
     script: |
-      secedit /export /cfg c:\secpol.cfg (gc C:\secpol.cfg).replace("PasswordComplexity = 1", "PasswordComplexity = 0") | Out-File C:\secpol.cfg secedit /configure /db c:\windows\security\local.sdb /cfg c:\secpol.cfg /areas SECURITYPOLICY rm -force c:\secpol.cfg -confirm:$false
+      secedit /export /cfg c:\secpol.cfg
 
 - name: Create circleci user
   win_user:
