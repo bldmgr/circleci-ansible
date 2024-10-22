@@ -1,0 +1,29 @@
+---
+- block:
+    - name: Download yq
+      ansible.builtin.shell: |
+        curl -fsSL -o /tmp/yq.tar.gz https://github.com/mikefarah/yq/releases/download/v{{ yq_version }}/yq_linux_{{ arch }}.tar.gz
+
+    - name: Create /tmp/yq directory
+      ansible.builtin.file:
+        path: "/tmp/yq"
+        state: directory
+
+    - name: Extract yq
+      ansible.builtin.unarchive:
+        src: "/tmp/yq.tar.gz"
+        dest: "/tmp/yq"
+        remote_src: yes
+
+    - name: List files
+      ansible.builtin.shell: |
+        ls -al /tmp/yq
+
+    - name: Copy yq files and make it executable
+      ansible.builtin.copy:
+        src: "/tmp/yq/yq_linux_{{ arch }}"
+        dest: "/usr/local/bin/yq"
+        mode: a+x
+        remote_src: yes
+
+  become: true

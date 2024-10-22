@@ -1,0 +1,50 @@
+---
+- block:
+    - name: Create /opt/google directory
+      ansible.builtin.file:
+        path: "/opt/google"
+        owner: "{{ circleci_user }}"
+        group: "{{ circleci_user }}"
+        state: directory
+
+    - name: Download gcloud (arm64)
+      ansible.builtin.shell: |
+        curl -fsSL -o /tmp/gcloud.tar.gz https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-{{ gcloud_version }}-linux-arm.tar.gz
+      when: arch == "arm64" or arch == "aarch64"
+
+    - name: Download gcloud (amd64)
+      ansible.builtin.shell: |
+        curl -fsSL -o /tmp/gcloud.tar.gz https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-{{ gcloud_version }}-linux-{{ ansible_facts.architecture }}.tar.gz
+      when: arch == "amd64" or arch == "x86_64"
+
+    - name: Extract gcloud
+      ansible.builtin.unarchive:
+        src: "/tmp/gcloud.tar.gz"
+        dest: "/opt/google"
+        remote_src: yes
+
+    - name: Configure gcloud
+      ansible.builtin.shell: |
+        /opt/google/google-cloud-sdk/bin/gcloud config set --installation component_manager/disable_update_check true
+        /opt/google/google-cloud-sdk/bin/gcloud config set disable_usage_reporting false
+
+    - name: Make /.config directory
+      ansible.builtin.file:
+        path: "{{ circleci_home }}/.config"
+        state: directory
+
+    - name: Change ownership of /.config directory
+      ansible.builtin.file:
+        path: "{{ circleci_home }}/.config"
+        owner: "{{ circleci_user }}"
+        group: "{{ circleci_user }}"
+        state: directory
+        recurse: yes
+
+    - name: Set gcloud path
+      ansible.builtin.lineinfile:
+        path: "{{ circleci_home }}/.circlerc"
+        line: "export PATH=/opt/google/google-cloud-sdk/bin:$PATH"
+        create: yes
+
+  become: true

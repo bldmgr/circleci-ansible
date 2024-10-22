@@ -1,0 +1,104 @@
+---
+- name: Register machine architecture
+  become: true
+  ansible.builtin.shell: dpkg --print-architecture
+  register: arch_string
+
+- name: Set fact for architecture
+  ansible.builtin.set_fact:
+    arch: "{{ arch_string.stdout }}"
+
+- block:
+  - name: Get available users
+    getent:
+      database: passwd
+
+  - name: Get available groups
+    getent:
+      database: group
+
+  - name: Ensure aws group exists
+    group:
+      name: aws-sudoers
+      gid: 1001
+      non_unique: yes
+
+  - name: Ensure circleci group exists
+    group:
+      name: "{{ circleci_user }}"
+      gid: 1002
+      non_unique: yes
+
+  - name: Register old user
+    become: true
+    ansible.builtin.shell: |
+      getent passwd "1001" | cut -d: -f1
+    register: old_user
+
+  - name: Set old user fact
+    ansible.builtin.set_fact:
+      oldUser: "{{ old_user.stdout }}"
+
+  - name: Remove uid 1001
+    ansible.builtin.user:
+      name: "{{ oldUser }}"
+      state: absent
+    when: "old_user.stdout != 'circleci'"
+
+  - name: Ensure circleci user exists
+    ansible.builtin.user:
+      name: "{{ circleci_user }}"
+      comment: CircleCI
+      uid: 1001
+      non_unique: true
+      home: "{{ circleci_home }}"
+      move_home: true
+      shell: /bin/bash
+      group: "{{ circleci_user }}"
+      groups: aws-sudoers,adm,audio,cdrom,dialout,dip,floppy,lxd,netdev,plugdev,video,ubuntu
+      append: yes
+      password: ''
+      password_lock: yes
+      state: present
+
+  - name: Ensure .ssh directory exists for circleci user
+    ansible.builtin.file:
+      path: "{{ circleci_home }}/.ssh"
+      owner: "{{ circleci_user }}"
+      group: "{{ circleci_user }}"
+      mode: 0775
+      state: directory
+
+  - name: Ensure aws-sudoers group has passwordless sudo
+    ansible.builtin.lineinfile:
+      path: "/etc/sudoers.d/aws-sudoers"
+      line: "%aws-sudoers ALL=(ALL:ALL) NOPASSWD:ALL"
+      mode: 0440
+      create: yes
+
+  - name: Ensure circleci user has passwordless
+    ansible.builtin.lineinfile:
+      path: "/etc/sudoers.d/circleci"
+      line: circleci ALL=(ALL:ALL) NOPASSWD:ALL
+      mode: 0440
+      create: yes
+
+  - name: Ensure circleci user has passwordless and ulimit fix for jammy
+    ansible.builtin.lineinfile:
+      path: "/etc/sudoers.d/circleci"
+      line: Defaults rlimit_core=default
+      mode: 0440
+      create: yes
+    when: ansible_facts['distribution_major_version'] != "20"
+
+  - name: Test sudoers files
+    ansible.builtin.shell:
+      sudo visudo -c
+
+  - name: Reset connection so new user groups work
+    ansible.builtin.meta: reset_connection
+
+  become: true
+
+  collections:
+    - ansible.builtin.user

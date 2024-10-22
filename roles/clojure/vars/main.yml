@@ -1,0 +1,4 @@
+---
+circleci_user: circleci
+circleci_home: /home/circleci
+lein_dir: '/usr/local/bin'

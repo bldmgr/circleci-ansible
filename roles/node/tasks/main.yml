@@ -1,0 +1,88 @@
+---
+- name: Check if NVM is installed
+  become: true
+  ansible.builtin.shell: which nvm
+  changed_when: false
+  ignore_errors: true
+  register: nvm_installed
+
+- block:
+    - name: Ensure correct permissions
+      ansible.builtin.file:
+        path: "{{ nvm_dir }}"
+        owner: "{{ circleci_user }}"
+        group: "{{ circleci_user }}"
+        mode: 0775
+        state: directory
+
+    - name: Set safe directory
+      ansible.builtin.shell:
+        git config --global --add safe.directory '*'
+      args:
+        chdir: "{{ nvm_dir }}"
+
+    - name: Download NVM
+      ansible.builtin.shell:
+        git clone https://github.com/nvm-sh/nvm .
+      args:
+        chdir: "{{ nvm_dir }}"
+
+    - name: Set tag to latest
+      changed_when: false
+      ansible.builtin.shell:
+        git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`
+      args:
+        chdir: "{{ nvm_dir }}"
+
+    - name: Configure nvm
+      ansible.builtin.blockinfile:
+        path: "{{ circleci_home }}/.circlerc"
+        owner: "{{ circleci_user }}"
+        group: "{{ circleci_user }}"
+        marker_begin: "NODE START"
+        marker_end: "NODE END"
+        create: yes
+        block: |
+          export NVM_DIR={{ nvm_dir }}
+          source {{ nvm_dir }}/nvm.sh
+          export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+
+    - name: Set nvm dir with correct permissions recursively after running script
+      ansible.builtin.file:
+        path: "{{ nvm_dir }}"
+        owner: "{{ circleci_user }}"
+        group: "{{ circleci_user }}"
+        mode: 0775
+        recurse: true
+        state: directory
+
+    - name: Install NodeJS
+      become_method: sudo
+      ansible.builtin.shell:
+        "sudo -H -i -u {{ circleci_user }} nvm install {{ item }}"
+      with_items: "{{ node }}"
+
+    - name: Set Node defaults
+      become_method: sudo
+      ansible.builtin.shell:
+        sudo -H -i -u {{ circleci_user }} /bin/bash -c "source /home/circleci/.circlerc nvm alias default {{ nodelts_version }} && nvm use {{ nodelts_version }}"
+
+    - name: Install npm packages
+      become_method: sudo
+      ansible.builtin.shell:
+        "sudo -H -i -u {{ circleci_user }} npm install -g {{ item }}"
+      with_items: "{{ npm }}"
+
+    - name: Change perms for .npm
+      become_user: "{{ circleci_user }}"
+      ansible.builtin.shell:
+        "sudo chmod u+w {{ circleci_home }}/.npm"
+
+  when: nvm_installed.rc == 1
+
+  become: true
+
+  collections:
+    - community.general

@@ -1,0 +1,51 @@
+- name: Install PowershellGet
+  ansible.windows.win_powershell:
+    script: |
+      Install-PackageProvider -Name NuGet -Force
+      Install-Module PowerShellGet -Force -AllowClobber -Confirm:$false
+
+- name: Register nuget repository
+  community.windows.win_psrepository:
+    name: Nuget
+    source_location: https://nuget.org/api/v2/
+    installation_policy: trusted
+    state: present
+
+- name: Install git
+  win_chocolatey:
+    name: git
+    state: '{{ package_state }}'
+    package_params: '"/GitAndUnixToolsOnPath"'
+    version: '{{ git_version }}'
+    force: true
+
+- name: Install git-lfs
+  win_chocolatey:
+    name: git-lfs
+    state: '{{ package_state }}'
+    version: '{{ gitlfs_version }}'
+    force: true
+
+- name: Install 7zip.portable
+  win_chocolatey:
+    name: 7zip.portable
+    state: '{{ package_state }}'
+    version: '{{ sevenzip_version }}'
+    force: true
+
+- name: Install gzip
+  win_chocolatey:
+    name: gzip
+    state: '{{ package_state }}'
+    version: '{{ gzip_version }}'
+    force: true
+
+# Checksums are ignored due to this comment: http://disq.us/p/2k4lc0k
+- name: Install sysinternals
+  win_chocolatey:
+    name: sysinternals
+    state: '{{ package_state }}'
+    version: '{{ sysinternals_version }}'
+    force: true
+    choco_args:
+      - --ignore-checksums
